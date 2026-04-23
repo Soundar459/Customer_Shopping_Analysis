@@ -110,6 +110,39 @@ with tab5:
         st.session_state.run = True
 
     if st.session_state.run:
+        # -------- RISK CALCULATION --------
+
+# condition: low value transactions = risk
+risk_df = filtered[filtered["TotalPrice"] < df["TotalPrice"].mean()]
+safe_df = filtered[filtered["TotalPrice"] >= df["TotalPrice"].mean()]
+
+risk_pct = (len(risk_df) / len(filtered)) * 100
+safe_pct = (len(safe_df) / len(filtered)) * 100
+
+# -------- PIE CHART --------
+st.subheader("🔍 Risk vs Safe Analysis")
+
+risk_data = pd.DataFrame({
+    "Status": ["Safe", "Risk"],
+    "Percentage": [safe_pct, risk_pct]
+})
+
+fig = px.pie(
+    risk_data,
+    names="Status",
+    values="Percentage",
+    color="Status",
+    color_discrete_map={
+        "Safe": "green",
+        "Risk": "red"
+    }
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
+# -------- TEXT OUTPUT --------
+st.write(f"✅ Safe Customers: {safe_pct:.1f}%")
+st.write(f"⚠️ Risk Customers: {risk_pct:.1f}%")
 
         filtered = df.copy()
 
