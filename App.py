@@ -6,7 +6,7 @@ st.set_page_config(layout="wide")
 
 st.title("🧠 Retail Business Intelligence Dashboard")
 
-# ---------------- DATA LOAD (AUTO) ----------------
+# ---------------- DATA LOAD ----------------
 @st.cache_data
 def load_data():
     df = pd.read_excel("customer_shopping_data1.xlsx")
@@ -40,7 +40,6 @@ with tab1:
     col2.metric("Total Orders", len(df))
     col3.metric("Avg Order Value", f"₹{df['TotalPrice'].mean():.2f}")
 
-    st.write("### Revenue by Category")
     rev = df.groupby("category")["TotalPrice"].sum().reset_index()
     st.plotly_chart(px.bar(rev, x="category", y="TotalPrice"), use_container_width=True)
 
@@ -50,9 +49,6 @@ with tab2:
 
     g = df.groupby("gender")["TotalPrice"].sum().reset_index()
     st.plotly_chart(px.bar(g, x="gender", y="TotalPrice"), use_container_width=True)
-
-    st.write("### Avg Spend")
-    st.dataframe(df.groupby("gender")["TotalPrice"].mean())
 
 # ================= PRODUCTS =================
 with tab3:
@@ -73,35 +69,28 @@ with tab4:
 with tab5:
 
     st.subheader("🎯 Business Decision Engine")
-    st.info("Select filters → Click Analyze → Get Risk Analysis")
+    st.info("Select filters → Click Analyze → Get clear risk insights")
 
     col1, col2 = st.columns(2)
 
-    # -------- FILTERS --------
     gender = col1.selectbox("Gender", ["All"] + list(df["gender"].unique()))
     category = col1.selectbox("Category", ["All"] + list(df["category"].unique()))
     payment = col2.selectbox("Payment Method", ["All"] + list(df["payment_method"].unique()))
 
-    price = col2.slider(
-        "Price Range",
-        int(df["price"].min()),
-        int(df["price"].max()),
-        (int(df["price"].min()), int(df["price"].max()))
-    )
+    price = col2.slider("Price Range",
+                        int(df["price"].min()),
+                        int(df["price"].max()),
+                        (int(df["price"].min()), int(df["price"].max())))
 
-    quantity = st.slider(
-        "Quantity Range",
-        int(df["quantity"].min()),
-        int(df["quantity"].max()),
-        (int(df["quantity"].min()), int(df["quantity"].max()))
-    )
+    quantity = st.slider("Quantity Range",
+                         int(df["quantity"].min()),
+                         int(df["quantity"].max()),
+                         (int(df["quantity"].min()), int(df["quantity"].max())))
 
-    # -------- BUTTON --------
     if st.button("🚀 Analyze"):
 
         filtered = df.copy()
 
-        # APPLY FILTERS
         if gender != "All":
             filtered = filtered[filtered["gender"] == gender]
 
@@ -119,73 +108,91 @@ with tab5:
         ]
 
         if len(filtered) == 0:
-            st.error("❌ No data found for selected filters")
+            st.error("❌ No data found")
 
         else:
-            # -------- RISK CALCULATION --------
             avg_total = df["TotalPrice"].mean()
 
-            risk_df = filtered[filtered["TotalPrice"] < avg_total]
-            safe_df = filtered[filtered["TotalPrice"] >= avg_total]
+            # -------- RISK FLAG --------
+            filtered["RiskFlag"] = filtered["TotalPrice"] < avg_total
 
-            risk_pct = (len(risk_df) / len(filtered)) * 100
-            safe_pct = (len(safe_df) / len(filtered)) * 100
+            risk_pct = filtered["RiskFlag"].mean() * 100
+            safe_pct = 100 - risk_pct
 
             # -------- RESULT --------
-            st.subheader("📊 Risk Analysis Result")
+            st.subheader("📊 Overall Risk Result")
 
             if risk_pct < 40:
-                st.success("✅ LOW RISK BUSINESS SEGMENT")
+                st.success("✅ LOW RISK")
             elif risk_pct < 70:
-                st.warning("⚠️ MEDIUM RISK BUSINESS SEGMENT")
+                st.warning("⚠️ MEDIUM RISK")
             else:
-                st.error("🚨 HIGH RISK BUSINESS SEGMENT")
+                st.error("🚨 HIGH RISK")
 
-            # -------- PIE CHART --------
-            st.subheader("🔍 Risk vs Safe Distribution")
-
+            # -------- PIE --------
             risk_data = pd.DataFrame({
                 "Status": ["Safe", "Risk"],
                 "Percentage": [safe_pct, risk_pct]
             })
 
-            fig = px.pie(
-                risk_data,
-                names="Status",
-                values="Percentage",
-                color="Status",
-                color_discrete_map={
-                    "Safe": "green",
-                    "Risk": "red"
-                }
+            st.plotly_chart(
+                px.pie(risk_data, names="Status", values="Percentage",
+                       color="Status",
+                       color_discrete_map={"Safe": "green", "Risk": "red"}),
+                use_container_width=True
             )
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.write(f"🟢 Safe: {safe_pct:.1f}%")
+            st.write(f"🔴 Risk: {risk_pct:.1f}%")
 
-            # -------- DETAILS --------
-            st.write(f"🟢 Safe Customers: {safe_pct:.1f}%")
-            st.write(f"🔴 Risk Customers: {risk_pct:.1f}%")
+            # ================= NEW CLEAR ANALYTICS =================
+
+            # -------- CATEGORY RISK --------
+            st.subheader("📊 Risk by Category")
+
+            cat = filtered.groupby("category")["RiskFlag"].mean().reset_index()
+            cat["Risk %"] = cat["RiskFlag"] * 100
+
+            st.plotly_chart(
+                px.bar(cat, x="category", y="Risk %",
+                       color="Risk %",
+                       color_continuous_scale=["green", "red"]),
+                use_container_width=True
+            )
+
+            # -------- GENDER RISK --------
+            st.subheader("👥 Risk by Gender")
+
+            gen = filtered.groupby("gender")["RiskFlag"].mean().reset_index()
+            gen["Risk %"] = gen["RiskFlag"] * 100
+
+            st.plotly_chart(
+                px.bar(gen, x="gender", y="Risk %",
+                       color="Risk %",
+                       color_continuous_scale=["green", "red"]),
+                use_container_width=True
+            )
+
+            # -------- INSIGHT --------
+            st.subheader("📌 Key Insight")
+
+            worst_cat = cat.sort_values("Risk %", ascending=False).iloc[0]["category"]
+            st.write(f"⚠️ Highest risk category: {worst_cat}")
 
             # -------- PROBLEM --------
-            st.subheader("⚠️ Problem Identified")
+            st.subheader("⚠️ Problem")
 
             if risk_pct > 60:
-                st.write("- High number of low-value transactions")
+                st.write("- Too many low-value transactions")
 
             if filtered["quantity"].mean() < df["quantity"].mean():
-                st.write("- Customers buying lower quantity")
-
-            if filtered["price"].mean() < df["price"].mean():
-                st.write("- Low price products dominating")
+                st.write("- Customers buying low quantity")
 
             # -------- RECOMMENDATION --------
             st.subheader("💡 Recommendation")
 
             if risk_pct > 60:
-                st.write("- Improve pricing strategy or product value")
+                st.write("- Improve pricing strategy")
 
             if filtered["quantity"].mean() < df["quantity"].mean():
-                st.write("- Offer combo deals and discounts")
-
-            if filtered["price"].mean() < df["price"].mean():
-                st.write("- Promote premium products")
+                st.write("- Offer combo deals")
