@@ -12,6 +12,17 @@ file = st.sidebar.file_uploader("📂 Upload Excel File", type=["xlsx"])
 @st.cache_data
 def load_data(file):
     df = pd.read_excel(file)
+    if file:
+    df = load_data(file)
+
+else:
+    try:
+        df = load_data("customer_shopping_data1.xlsx")
+        st.info("📊 Using default dataset (you can upload your own)")
+
+    except:
+        st.warning("📂 Upload dataset to begin")
+        st.stop()
     df.columns = df.columns.str.strip()
     df["TotalPrice"] = df["price"] * df["quantity"]
     return df
