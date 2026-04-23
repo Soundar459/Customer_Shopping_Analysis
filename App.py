@@ -109,7 +109,6 @@ with tab5:
 
         if len(filtered) == 0:
             st.error("❌ No data found")
-
         else:
             avg_total = df["TotalPrice"].mean()
 
@@ -136,42 +135,64 @@ with tab5:
             })
 
             st.plotly_chart(
-                px.pie(risk_data, names="Status", values="Percentage",
-                       color="Status",
-                       color_discrete_map={"Safe": "green", "Risk": "red"}),
+                px.pie(
+                    risk_data,
+                    names="Status",
+                    values="Percentage",
+                    color="Status",
+                    color_discrete_map={"Safe": "green", "Risk": "red"}
+                ),
                 use_container_width=True
             )
 
             st.write(f"🟢 Safe: {safe_pct:.1f}%")
             st.write(f"🔴 Risk: {risk_pct:.1f}%")
 
-            # ================= NEW CLEAR ANALYTICS =================
+            # ================= FIXED CLEAR CHARTS =================
 
             # -------- CATEGORY RISK --------
             st.subheader("📊 Risk by Category")
 
             cat = filtered.groupby("category")["RiskFlag"].mean().reset_index()
             cat["Risk %"] = cat["RiskFlag"] * 100
+            cat["Level"] = cat["Risk %"].apply(lambda x: "High Risk" if x > 50 else "Low Risk")
 
-            st.plotly_chart(
-                px.bar(cat, x="category", y="Risk %",
-                       color="Risk %",
-                       color_continuous_scale=["green", "red"]),
-                use_container_width=True
+            fig1 = px.bar(
+                cat,
+                x="category",
+                y="Risk %",
+                color="Level",
+                text="Risk %",
+                color_discrete_map={
+                    "High Risk": "red",
+                    "Low Risk": "green"
+                }
             )
+
+            fig1.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+            st.plotly_chart(fig1, use_container_width=True)
 
             # -------- GENDER RISK --------
             st.subheader("👥 Risk by Gender")
 
             gen = filtered.groupby("gender")["RiskFlag"].mean().reset_index()
             gen["Risk %"] = gen["RiskFlag"] * 100
+            gen["Level"] = gen["Risk %"].apply(lambda x: "High Risk" if x > 50 else "Low Risk")
 
-            st.plotly_chart(
-                px.bar(gen, x="gender", y="Risk %",
-                       color="Risk %",
-                       color_continuous_scale=["green", "red"]),
-                use_container_width=True
+            fig2 = px.bar(
+                gen,
+                x="gender",
+                y="Risk %",
+                color="Level",
+                text="Risk %",
+                color_discrete_map={
+                    "High Risk": "red",
+                    "Low Risk": "green"
+                }
             )
+
+            fig2.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+            st.plotly_chart(fig2, use_container_width=True)
 
             # -------- INSIGHT --------
             st.subheader("📌 Key Insight")
@@ -186,7 +207,7 @@ with tab5:
                 st.write("- Too many low-value transactions")
 
             if filtered["quantity"].mean() < df["quantity"].mean():
-                st.write("- Customers buying low quantity")
+                st.write("- Customers buying lower quantity")
 
             # -------- RECOMMENDATION --------
             st.subheader("💡 Recommendation")
