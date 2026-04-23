@@ -9,7 +9,23 @@ st.title("🧠 Retail Business Intelligence Dashboard")
 # ---------------- DATA SOURCE ----------------
 st.sidebar.header("📂 Data Source")
 
-file = st.sidebar.file_uploader("Upload Excel File", type=["xlsx"])
+st.sidebar.header("📂 Data Source")
+
+@st.cache_data
+def load_data():
+    df = pd.read_excel("customer_shopping_data1.xlsx")
+    df.columns = df.columns.str.strip()
+    df["TotalPrice"] = df["price"] * df["quantity"]
+    return df
+
+# -------- AUTO LOAD --------
+try:
+    df = load_data()
+    st.sidebar.success("✅ Dataset Loaded")
+
+except:
+    st.error("❌ Dataset file not found")
+    st.stop()
 
 @st.cache_data
 def load_data(file):
