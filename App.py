@@ -6,30 +6,20 @@ st.set_page_config(layout="wide")
 
 st.title("🧠 Retail Business Intelligence Dashboard")
 
-# ---------------- DATA SOURCE ----------------
-st.sidebar.header("📂 Data Source")
-
-file = st.sidebar.file_uploader("Upload Excel File", type=["xlsx"])
-
+# ---------------- DATA LOAD (AUTO) ----------------
 @st.cache_data
-def load_data(file):
-    df = pd.read_excel(file)
+def load_data():
+    df = pd.read_excel("customer_shopping_data1.xlsx")
     df.columns = df.columns.str.strip()
     df["TotalPrice"] = df["price"] * df["quantity"]
     return df
 
-# -------- FIXED LOGIC --------
-if file:
-    df = load_data(file)
-
-else:
-    try:
-        df = load_data("customer_shopping_data1.xlsx")
-        st.info("📊 Using default dataset (you can upload your own)")
-
-    except:
-        st.warning("📂 Upload dataset to begin")
-        st.stop()
+try:
+    df = load_data()
+    st.success("✅ Dataset Loaded")
+except:
+    st.error("❌ Dataset not found")
+    st.stop()
 
 # ---------------- TABS ----------------
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -83,7 +73,7 @@ with tab4:
 with tab5:
 
     st.subheader("🎯 Business Decision Engine")
-    st.info("Select filters → Click Analyze → Get insights")
+    st.info("Select filters → Click Analyze → Get Risk Analysis")
 
     col1, col2 = st.columns(2)
 
@@ -92,61 +82,26 @@ with tab5:
     category = col1.selectbox("Category", ["All"] + list(df["category"].unique()))
     payment = col2.selectbox("Payment Method", ["All"] + list(df["payment_method"].unique()))
 
-    price = col2.slider("Price Range",
-                        int(df["price"].min()),
-                        int(df["price"].max()),
-                        (int(df["price"].min()), int(df["price"].max())))
+    price = col2.slider(
+        "Price Range",
+        int(df["price"].min()),
+        int(df["price"].max()),
+        (int(df["price"].min()), int(df["price"].max()))
+    )
 
-    quantity = st.slider("Quantity Range",
-                         int(df["quantity"].min()),
-                         int(df["quantity"].max()),
-                         (int(df["quantity"].min()), int(df["quantity"].max())))
+    quantity = st.slider(
+        "Quantity Range",
+        int(df["quantity"].min()),
+        int(df["quantity"].max()),
+        (int(df["quantity"].min()), int(df["quantity"].max()))
+    )
 
-    # -------- BUTTON CONTROL --------
-    if "run" not in st.session_state:
-        st.session_state.run = False
-
+    # -------- BUTTON --------
     if st.button("🚀 Analyze"):
-        st.session_state.run = True
-
-    if st.session_state.run:
-        # -------- RISK CALCULATION --------
-
-# condition: low value transactions = risk
-risk_df = filtered[filtered["TotalPrice"] < df["TotalPrice"].mean()]
-safe_df = filtered[filtered["TotalPrice"] >= df["TotalPrice"].mean()]
-
-risk_pct = (len(risk_df) / len(filtered)) * 100
-safe_pct = (len(safe_df) / len(filtered)) * 100
-
-# -------- PIE CHART --------
-st.subheader("🔍 Risk vs Safe Analysis")
-
-risk_data = pd.DataFrame({
-    "Status": ["Safe", "Risk"],
-    "Percentage": [safe_pct, risk_pct]
-})
-
-fig = px.pie(
-    risk_data,
-    names="Status",
-    values="Percentage",
-    color="Status",
-    color_discrete_map={
-        "Safe": "green",
-        "Risk": "red"
-    }
-)
-
-st.plotly_chart(fig, use_container_width=True)
-
-# -------- TEXT OUTPUT --------
-st.write(f"✅ Safe Customers: {safe_pct:.1f}%")
-st.write(f"⚠️ Risk Customers: {risk_pct:.1f}%")
 
         filtered = df.copy()
 
-        # -------- APPLY FILTERS --------
+        # APPLY FILTERS
         if gender != "All":
             filtered = filtered[filtered["gender"] == gender]
 
@@ -164,62 +119,61 @@ st.write(f"⚠️ Risk Customers: {risk_pct:.1f}%")
         ]
 
         if len(filtered) == 0:
-            st.error("No data found for selected filters")
+            st.error("❌ No data found for selected filters")
 
         else:
-            st.subheader("📊 Result")
+            # -------- RISK CALCULATION --------
+            avg_total = df["TotalPrice"].mean()
 
-            total = filtered["TotalPrice"].sum()
-            avg = df["TotalPrice"].mean()
+            risk_df = filtered[filtered["TotalPrice"] < avg_total]
+            safe_df = filtered[filtered["TotalPrice"] >= avg_total]
 
-            st.metric("Filtered Revenue", f"₹{total:,.0f}")
+            risk_pct = (len(risk_df) / len(filtered)) * 100
+            safe_pct = (len(safe_df) / len(filtered)) * 100
 
-            # VALUE
-            if total > avg * len(filtered):
-                st.success("💰 High Value Segment")
-            elif total > avg * len(filtered) * 0.7:
-                st.warning("⚠️ Medium Value Segment")
+            # -------- RESULT --------
+            st.subheader("📊 Risk Analysis Result")
+
+            if risk_pct < 40:
+                st.success("✅ LOW RISK BUSINESS SEGMENT")
+            elif risk_pct < 70:
+                st.warning("⚠️ MEDIUM RISK BUSINESS SEGMENT")
             else:
-                st.error("🚨 Low Value Segment")
+                st.error("🚨 HIGH RISK BUSINESS SEGMENT")
 
-            # RISK
-            low_value_pct = (filtered["TotalPrice"] < avg).mean() * 100
+            # -------- PIE CHART --------
+            st.subheader("🔍 Risk vs Safe Distribution")
 
-            if low_value_pct < 40:
-                st.success("✅ LOW RISK")
-            elif low_value_pct < 70:
-                st.warning("⚠️ MEDIUM RISK")
-            else:
-                st.error("🚨 HIGH RISK")
+            risk_data = pd.DataFrame({
+                "Status": ["Safe", "Risk"],
+                "Percentage": [safe_pct, risk_pct]
+            })
 
-            # -------- CHARTS --------
-            st.subheader("📈 Visual Insights")
+            fig = px.pie(
+                risk_data,
+                names="Status",
+                values="Percentage",
+                color="Status",
+                color_discrete_map={
+                    "Safe": "green",
+                    "Risk": "red"
+                }
+            )
 
-            colA, colB = st.columns(2)
+            st.plotly_chart(fig, use_container_width=True)
 
-            with colA:
-                cat_rev = filtered.groupby("category")["TotalPrice"].sum().reset_index()
-                st.plotly_chart(px.bar(cat_rev, x="category", y="TotalPrice"), use_container_width=True)
-
-            with colB:
-                gen_rev = filtered.groupby("gender")["TotalPrice"].sum().reset_index()
-                st.plotly_chart(px.pie(gen_rev, names="gender", values="TotalPrice"))
-
-            pay = filtered["payment_method"].value_counts().reset_index()
-            pay.columns = ["method", "count"]
-            st.plotly_chart(px.bar(pay, x="method", y="count"), use_container_width=True)
-
-            st.plotly_chart(px.scatter(filtered, x="price", y="quantity", color="category"),
-                            use_container_width=True)
+            # -------- DETAILS --------
+            st.write(f"🟢 Safe Customers: {safe_pct:.1f}%")
+            st.write(f"🔴 Risk Customers: {risk_pct:.1f}%")
 
             # -------- PROBLEM --------
-            st.subheader("⚠️ Problem")
+            st.subheader("⚠️ Problem Identified")
 
-            if low_value_pct > 60:
-                st.write("- Too many low-value transactions")
+            if risk_pct > 60:
+                st.write("- High number of low-value transactions")
 
             if filtered["quantity"].mean() < df["quantity"].mean():
-                st.write("- Customers buying less quantity")
+                st.write("- Customers buying lower quantity")
 
             if filtered["price"].mean() < df["price"].mean():
                 st.write("- Low price products dominating")
@@ -227,11 +181,11 @@ st.write(f"⚠️ Risk Customers: {risk_pct:.1f}%")
             # -------- RECOMMENDATION --------
             st.subheader("💡 Recommendation")
 
-            if low_value_pct > 60:
-                st.write("- Improve product value or pricing")
+            if risk_pct > 60:
+                st.write("- Improve pricing strategy or product value")
 
             if filtered["quantity"].mean() < df["quantity"].mean():
-                st.write("- Offer combo deals")
+                st.write("- Offer combo deals and discounts")
 
             if filtered["price"].mean() < df["price"].mean():
                 st.write("- Promote premium products")
