@@ -43,33 +43,11 @@ with tab1:
     rev = df.groupby("category")["TotalPrice"].sum().reset_index()
     st.plotly_chart(px.bar(rev, x="category", y="TotalPrice"), use_container_width=True)
 
-# ================= CUSTOMER =================
-with tab2:
-    st.subheader("👥 Customer Insights")
-
-    g = df.groupby("gender")["TotalPrice"].sum().reset_index()
-    st.plotly_chart(px.bar(g, x="gender", y="TotalPrice"), use_container_width=True)
-
-# ================= PRODUCTS =================
-with tab3:
-    st.subheader("🛍️ Product Insights")
-
-    c = df.groupby("category")["quantity"].sum().reset_index()
-    st.plotly_chart(px.bar(c, x="category", y="quantity"), use_container_width=True)
-
-# ================= PAYMENT =================
-with tab4:
-    st.subheader("💳 Payment Insights")
-
-    p = df["payment_method"].value_counts().reset_index()
-    p.columns = ["method", "count"]
-    st.plotly_chart(px.bar(p, x="method", y="count"), use_container_width=True)
-
 # ================= DECISION ENGINE =================
 with tab5:
 
     st.subheader("🎯 Business Decision Engine")
-    st.info("Select filters → Click Analyze → Get clear risk insights")
+    st.info("Select filters → Click Analyze → Get clear insights")
 
     col1, col2 = st.columns(2)
 
@@ -91,6 +69,7 @@ with tab5:
 
         filtered = df.copy()
 
+        # FILTERS
         if gender != "All":
             filtered = filtered[filtered["gender"] == gender]
 
@@ -110,110 +89,102 @@ with tab5:
         if len(filtered) == 0:
             st.error("❌ No data found")
         else:
-            avg_total = df["TotalPrice"].mean()
 
-            # -------- RISK FLAG --------
+            # 🔥 IMPORTANT FIX → use FILTERED average (not full dataset)
+            avg_total = filtered["TotalPrice"].mean()
+
             filtered["RiskFlag"] = filtered["TotalPrice"] < avg_total
 
             risk_pct = filtered["RiskFlag"].mean() * 100
             safe_pct = 100 - risk_pct
 
-            # -------- RESULT --------
-            st.subheader("📊 Overall Risk Result")
+            # ================= RESULT =================
+            st.subheader("📊 Overall Result")
 
             if risk_pct < 40:
-                st.success("✅ LOW RISK")
+                st.success("✅ LOW RISK SEGMENT")
             elif risk_pct < 70:
-                st.warning("⚠️ MEDIUM RISK")
+                st.warning("⚠️ MEDIUM RISK SEGMENT")
             else:
-                st.error("🚨 HIGH RISK")
+                st.error("🚨 HIGH RISK SEGMENT")
 
-            # -------- PIE --------
+            # PIE
             risk_data = pd.DataFrame({
                 "Status": ["Safe", "Risk"],
                 "Percentage": [safe_pct, risk_pct]
             })
 
             st.plotly_chart(
-                px.pie(
-                    risk_data,
-                    names="Status",
-                    values="Percentage",
-                    color="Status",
-                    color_discrete_map={"Safe": "green", "Risk": "red"}
-                ),
+                px.pie(risk_data, names="Status", values="Percentage",
+                       color="Status",
+                       color_discrete_map={"Safe": "green", "Risk": "red"}),
                 use_container_width=True
             )
 
-            st.write(f"🟢 Safe: {safe_pct:.1f}%")
-            st.write(f"🔴 Risk: {risk_pct:.1f}%")
+            st.write(f"🟢 Safe Customers: {safe_pct:.1f}%")
+            st.write(f"🔴 Risk Customers: {risk_pct:.1f}%")
 
-            # ================= FIXED CLEAR CHARTS =================
+            # ================= CATEGORY =================
+            st.subheader("📊 Category Analysis")
 
-            # -------- CATEGORY RISK --------
-            st.subheader("📊 Risk by Category")
+            cat = filtered.groupby("category").agg({
+                "TotalPrice": "mean"
+            }).reset_index()
 
-            cat = filtered.groupby("category")["RiskFlag"].mean().reset_index()
-            cat["Risk %"] = cat["RiskFlag"] * 100
-            cat["Level"] = cat["Risk %"].apply(lambda x: "High Risk" if x > 50 else "Low Risk")
+            cat["Risk %"] = ((avg_total - cat["TotalPrice"]) / avg_total) * 100
+            cat["Risk %"] = cat["Risk %"].clip(lower=0)
 
-            fig1 = px.bar(
-                cat,
-                x="category",
-                y="Risk %",
-                color="Level",
-                text="Risk %",
-                color_discrete_map={
-                    "High Risk": "red",
-                    "Low Risk": "green"
-                }
-            )
+            fig1 = px.bar(cat, x="category", y="Risk %",
+                          color="Risk %",
+                          color_continuous_scale=["green", "red"],
+                          text="Risk %")
 
             fig1.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
             st.plotly_chart(fig1, use_container_width=True)
 
-            # -------- GENDER RISK --------
-            st.subheader("👥 Risk by Gender")
+            # EXPLANATION
+            worst_cat = cat.sort_values("Risk %", ascending=False).iloc[0]
+            st.info(f"""
+📌 Category Insight:
+- Highest Risk Category: {worst_cat['category']}
+- Risk: {worst_cat['Risk %']:.1f}%
+👉 This means this category generates lower revenue compared to average.
+""")
 
-            gen = filtered.groupby("gender")["RiskFlag"].mean().reset_index()
-            gen["Risk %"] = gen["RiskFlag"] * 100
-            gen["Level"] = gen["Risk %"].apply(lambda x: "High Risk" if x > 50 else "Low Risk")
+            # ================= GENDER =================
+            st.subheader("👥 Gender Analysis")
 
-            fig2 = px.bar(
-                gen,
-                x="gender",
-                y="Risk %",
-                color="Level",
-                text="Risk %",
-                color_discrete_map={
-                    "High Risk": "red",
-                    "Low Risk": "green"
-                }
-            )
+            gen = filtered.groupby("gender").agg({
+                "TotalPrice": "mean"
+            }).reset_index()
+
+            gen["Risk %"] = ((avg_total - gen["TotalPrice"]) / avg_total) * 100
+            gen["Risk %"] = gen["Risk %"].clip(lower=0)
+
+            fig2 = px.bar(gen, x="gender", y="Risk %",
+                          color="Risk %",
+                          color_continuous_scale=["green", "red"],
+                          text="Risk %")
 
             fig2.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
             st.plotly_chart(fig2, use_container_width=True)
 
-            # -------- INSIGHT --------
-            st.subheader("📌 Key Insight")
+            worst_gender = gen.sort_values("Risk %", ascending=False).iloc[0]
 
-            worst_cat = cat.sort_values("Risk %", ascending=False).iloc[0]["category"]
-            st.write(f"⚠️ Highest risk category: {worst_cat}")
+            st.info(f"""
+📌 Gender Insight:
+- Higher Risk Group: {worst_gender['gender']}
+- Risk: {worst_gender['Risk %']:.1f}%
+👉 This group spends less compared to others.
+""")
 
-            # -------- PROBLEM --------
-            st.subheader("⚠️ Problem")
+            # ================= FINAL INSIGHT =================
+            st.subheader("💡 Final Business Insight")
 
-            if risk_pct > 60:
-                st.write("- Too many low-value transactions")
+            st.write(f"""
+- Overall Risk Level: {risk_pct:.1f}%
+- Major Issue: Low value transactions in {worst_cat['category']}
+- Affected Customer Group: {worst_gender['gender']}
 
-            if filtered["quantity"].mean() < df["quantity"].mean():
-                st.write("- Customers buying lower quantity")
-
-            # -------- RECOMMENDATION --------
-            st.subheader("💡 Recommendation")
-
-            if risk_pct > 60:
-                st.write("- Improve pricing strategy")
-
-            if filtered["quantity"].mean() < df["quantity"].mean():
-                st.write("- Offer combo deals")
+👉 Business should focus on improving pricing, offers and engagement in these segments.
+""")
