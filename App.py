@@ -19,10 +19,10 @@ def load_data():
 df = load_data()
 benchmark = df["TotalPrice"].median()
 
-# ---------------- TOP NAVIGATION ----------------
+# ---------------- TOP MENU ----------------
 menu = st.radio(
     "",
-    ["🏠 Overview", "👥 Customers", "⚠️ Risk (Real Data)", "📊 Trends", "🎯 Decision Engine"],
+    ["🏠 Overview", "👥 Customers", "📦 Products", "💳 Payment", "🎯 Decision Engine"],
     horizontal=True
 )
 
@@ -31,27 +31,22 @@ menu = st.radio(
 # =====================================================
 if menu == "🏠 Overview":
 
-    st.subheader("📊 Business Overview")
-
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Revenue", f"₹{df['TotalPrice'].sum():,.0f}")
     col2.metric("Transactions", len(df))
     col3.metric("Avg Value", f"₹{df['TotalPrice'].mean():.2f}")
 
-    st.subheader("📈 Category Revenue")
-
+    st.subheader("📊 Category Revenue")
     cat = df.groupby("category")["TotalPrice"].sum().reset_index()
-
-    fig = px.bar(cat, x="category", y="TotalPrice", color="TotalPrice")
-    st.plotly_chart(fig, use_container_width=True)
-
+    st.plotly_chart(px.bar(cat, x="category", y="TotalPrice", color="TotalPrice"),
+                    use_container_width=True)
 
 # =====================================================
 # 👥 CUSTOMERS
 # =====================================================
 elif menu == "👥 Customers":
 
-    st.subheader("👥 Customer Analysis")
+    st.subheader("👥 Customer Spending")
 
     gen = df.groupby("gender")["TotalPrice"].mean().reset_index()
 
@@ -62,57 +57,36 @@ elif menu == "👥 Customers":
     fig.update_traces(textposition="outside")
     st.plotly_chart(fig, use_container_width=True)
 
-    st.info("Shows average spending by customer group.")
+# =====================================================
+# 📦 PRODUCTS
+# =====================================================
+elif menu == "📦 Products":
 
+    st.subheader("📦 Product Category Performance")
+
+    cat = df.groupby("category")["TotalPrice"].mean().reset_index()
+
+    st.plotly_chart(px.bar(cat, x="category", y="TotalPrice", color="TotalPrice"),
+                    use_container_width=True)
 
 # =====================================================
-# ⚠️ RISK (REAL DATA)
+# 💳 PAYMENT
 # =====================================================
-elif menu == "⚠️ Risk (Real Data)":
+elif menu == "💳 Payment":
 
-    st.subheader("⚠️ Risk Analysis (Real Data)")
+    st.subheader("💳 Payment Analysis")
 
-    low = (df["TotalPrice"] < benchmark).mean() * 100
-    safe = 100 - low
+    pay = df.groupby("payment_method")["TotalPrice"].mean().reset_index()
 
-    st.metric("Low Value %", f"{low:.1f}%")
-
-    pie = pd.DataFrame({
-        "Type": ["Safe", "Risk"],
-        "Value": [safe, low]
-    })
-
-    fig = px.pie(pie, names="Type", values="Value",
-                 color="Type",
-                 color_discrete_map={"Safe": "green", "Risk": "red"},
-                 hole=0.5)
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    st.info(f"{low:.1f}% transactions are below ₹{benchmark:.0f}")
-
-
-# =====================================================
-# 📊 TRENDS
-# =====================================================
-elif menu == "📊 Trends":
-
-    st.subheader("📊 Sales Trends")
-
-    trend = df.groupby("category")["TotalPrice"].mean().reset_index()
-
-    fig = px.line(trend, x="category", y="TotalPrice", markers=True)
-    st.plotly_chart(fig, use_container_width=True)
-
-    st.info("Shows trend of average sales across categories.")
-
+    st.plotly_chart(px.bar(pay, x="payment_method", y="TotalPrice", color="TotalPrice"),
+                    use_container_width=True)
 
 # =====================================================
 # 🎯 DECISION ENGINE
 # =====================================================
 elif menu == "🎯 Decision Engine":
 
-    st.subheader("🎯 Business Decision Engine (Simulation)")
+    st.subheader("🎯 Business Decision Engine")
 
     col1, col2 = st.columns(2)
 
@@ -130,9 +104,7 @@ elif menu == "🎯 Decision Engine":
                            int(df.quantity.max()),
                            (int(df.quantity.min()), int(df.quantity.max())))
 
-    chart_type = st.selectbox("Chart Type", ["Bar", "Pie", "Line"])
-
-    def apply_filters(df):
+    def apply_filters():
         f = df.copy()
 
         if gender != "All":
@@ -149,39 +121,71 @@ elif menu == "🎯 Decision Engine":
 
         return f
 
-    def compute_risk(df):
-        if df.empty:
-            return 0, 0, 0, 0
-
-        avg = df["TotalPrice"].mean()
-        low_share = (df["TotalPrice"] < benchmark).mean() * 100
-        safe = 100 - low_share
-
-        return low_share, safe, avg
+    def compute_risk(data):
+        avg = data["TotalPrice"].mean()
+        low = (data["TotalPrice"] < benchmark).mean() * 100
+        safe = 100 - low
+        return low, safe, avg
 
     if st.button("🚀 Analyze"):
 
-        filtered = apply_filters(df)
+        filtered = apply_filters()
 
         if filtered.empty:
-            st.error("No data for filters")
+            st.error("No data for selected filters")
             st.stop()
 
         risk, safe, avg = compute_risk(filtered)
 
-        st.metric("Risk %", f"{risk:.1f}%")
-        st.metric("Avg Value", f"₹{avg:.2f}")
+        # ---------------- KPIs ----------------
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Risk %", f"{risk:.1f}%")
+        c2.metric("Safe %", f"{safe:.1f}%")
+        c3.metric("Avg Value", f"₹{avg:.2f}")
 
-        # Chart switch
+        # ---------------- CHART 1 ----------------
+        st.subheader("🔍 Safe vs Risk")
+        pie = pd.DataFrame({"Type": ["Safe", "Risk"], "Value": [safe, risk]})
+
+        st.plotly_chart(px.pie(pie, names="Type", values="Value",
+                              color="Type",
+                              color_discrete_map={"Safe": "green", "Risk": "red"},
+                              hole=0.5),
+                        use_container_width=True)
+
+        # ---------------- CHART 2 ----------------
+        st.subheader("📊 Category Performance")
+
         cat = filtered.groupby("category")["TotalPrice"].mean().reset_index()
 
-        if chart_type == "Bar":
-            fig = px.bar(cat, x="category", y="TotalPrice", color="TotalPrice")
-        elif chart_type == "Pie":
-            fig = px.pie(cat, names="category", values="TotalPrice")
-        else:
-            fig = px.line(cat, x="category", y="TotalPrice", markers=True)
+        st.plotly_chart(px.bar(cat, x="category", y="TotalPrice",
+                               color="TotalPrice",
+                               text=cat["TotalPrice"].round(1)),
+                        use_container_width=True)
 
-        st.plotly_chart(fig, use_container_width=True)
+        # ---------------- CHART 3 ----------------
+        st.subheader("👥 Gender Comparison")
 
-        st.success(f"{risk:.1f}% transactions are low-value → indicates risk level")
+        gen = filtered.groupby("gender")["TotalPrice"].mean().reset_index()
+
+        st.plotly_chart(px.bar(gen, x="gender", y="TotalPrice",
+                               color="TotalPrice",
+                               text=gen["TotalPrice"].round(1)),
+                        use_container_width=True)
+
+        # ---------------- INSIGHTS ----------------
+        st.subheader("💡 Insights & Interpretation")
+
+        high_cat = cat.loc[cat["TotalPrice"].idxmax()]["category"]
+
+        st.write(f"""
+        - **Risk Level:** {'High' if risk>60 else 'Medium' if risk>30 else 'Low'}
+        - **Low-value Transactions:** {risk:.1f}%
+        - **Best Category:** {high_cat}
+        - **Average Spending:** ₹{avg:.2f}
+
+        👉 Interpretation:
+        - Higher low-value % increases risk  
+        - Higher average value improves performance  
+        - Category differences show spending behavior  
+        """)
