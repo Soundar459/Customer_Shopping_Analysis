@@ -11,15 +11,12 @@ st.title("🧠 Retail Business Intelligence Dashboard")
 def load_data():
     df = pd.read_excel("customer_shopping_data1.xlsx")
     df.columns = df.columns.str.strip()
-
     df["TotalPrice"] = df["price"] * df["quantity"]
 
-    # ---- AGE GROUP ----
     if "age" in df.columns:
         df["AgeGroup"] = pd.cut(df["age"],
                                bins=[0, 25, 45, 100],
                                labels=["Young", "Middle", "Senior"])
-
     return df
 
 df = load_data()
@@ -33,13 +30,101 @@ menu = st.radio(
 )
 
 # =====================================================
-# 🎯 DECISION ENGINE (UPDATED)
+# 🏠 OVERVIEW
 # =====================================================
-if menu == "🎯 Decision Engine":
+if menu == "🏠 Overview":
+
+    st.subheader("📊 Overview Dashboard")
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Revenue", f"₹{df['TotalPrice'].sum():,.0f}")
+    col2.metric("Transactions", len(df))
+    col3.metric("Avg Value", f"₹{df['TotalPrice'].mean():.2f}")
+
+    chart = st.selectbox("Choose Chart", ["Bar", "Pie"])
+
+    cat = df.groupby("category")["TotalPrice"].sum().reset_index()
+
+    if not cat.empty:
+        if chart == "Bar":
+            fig = px.bar(cat, x="category", y="TotalPrice",
+                         color="TotalPrice", color_continuous_scale="Blues")
+        else:
+            fig = px.pie(cat, names="category", values="TotalPrice")
+
+        st.plotly_chart(fig, use_container_width=True)
+
+# =====================================================
+# 👥 CUSTOMERS
+# =====================================================
+elif menu == "👥 Customers":
+
+    st.subheader("👥 Customer Analysis")
+
+    chart = st.selectbox("Choose Chart", ["Bar", "Pie"])
+
+    gen = df.groupby("gender")["TotalPrice"].mean().reset_index()
+
+    if not gen.empty:
+        if chart == "Bar":
+            fig = px.bar(gen, x="gender", y="TotalPrice",
+                         color="gender",
+                         color_discrete_map={"Male": "blue", "Female": "pink"})
+        else:
+            fig = px.pie(gen, names="gender", values="TotalPrice")
+
+        st.plotly_chart(fig, use_container_width=True)
+
+# =====================================================
+# 📦 PRODUCTS
+# =====================================================
+elif menu == "📦 Products":
+
+    st.subheader("📦 Product Performance")
+
+    chart = st.selectbox("Choose Chart", ["Bar", "Pie", "Line"])
+
+    cat = df.groupby("category")["TotalPrice"].mean().reset_index()
+
+    if not cat.empty:
+        if chart == "Bar":
+            fig = px.bar(cat, x="category", y="TotalPrice",
+                         color="TotalPrice", color_continuous_scale="Viridis")
+        elif chart == "Line":
+            fig = px.line(cat, x="category", y="TotalPrice", markers=True)
+        else:
+            fig = px.pie(cat, names="category", values="TotalPrice")
+
+        st.plotly_chart(fig, use_container_width=True)
+
+# =====================================================
+# 💳 PAYMENT
+# =====================================================
+elif menu == "💳 Payment":
+
+    st.subheader("💳 Payment Analysis")
+
+    chart = st.selectbox("Choose Chart", ["Bar", "Pie"])
+
+    pay = df.groupby("payment_method")["TotalPrice"].mean().reset_index()
+
+    if not pay.empty:
+        if chart == "Bar":
+            fig = px.bar(pay, x="payment_method", y="TotalPrice",
+                         color="TotalPrice", color_continuous_scale="Teal")
+        else:
+            fig = px.pie(pay, names="payment_method", values="TotalPrice")
+
+        st.plotly_chart(fig, use_container_width=True)
+
+# =====================================================
+# 🎯 DECISION ENGINE
+# =====================================================
+elif menu == "🎯 Decision Engine":
 
     st.subheader("🎯 Business Decision Engine")
 
-    chart_type = st.selectbox("Choose Chart Type", ["Bar", "Pie", "Line"])
+    chart = st.selectbox("Choose Chart", ["Bar", "Pie", "Line"])
 
     col1, col2 = st.columns(2)
 
@@ -47,14 +132,13 @@ if menu == "🎯 Decision Engine":
     category = col1.selectbox("Category", ["All"] + list(df["category"].unique()))
     payment = col2.selectbox("Payment", ["All"] + list(df["payment_method"].unique()))
 
-    # ✅ AGE FILTER
+    # AGE FILTER
+    age_range = None
     if "age" in df.columns:
         age_range = col2.slider("Age Range",
                                int(df.age.min()),
                                int(df.age.max()),
                                (int(df.age.min()), int(df.age.max())))
-    else:
-        age_range = None
 
     price = col1.slider("Price",
                         int(df.price.min()),
@@ -66,7 +150,6 @@ if menu == "🎯 Decision Engine":
                            int(df.quantity.max()),
                            (int(df.quantity.min()), int(df.quantity.max())))
 
-    # ---------------- FILTER FUNCTION ----------------
     def apply_filters():
         f = df.copy()
 
@@ -87,7 +170,6 @@ if menu == "🎯 Decision Engine":
 
         return f
 
-    # ---------------- ANALYZE ----------------
     if st.button("🚀 Analyze"):
 
         filtered = apply_filters()
@@ -96,80 +178,60 @@ if menu == "🎯 Decision Engine":
             st.warning("No data available")
             st.stop()
 
-        # ---------------- RISK LOGIC ----------------
         filtered["RiskFlag"] = filtered["TotalPrice"] < benchmark
 
-        risk_pct = filtered["RiskFlag"].mean() * 100
-        safe_pct = 100 - risk_pct
+        risk = filtered["RiskFlag"].mean() * 100
+        safe = 100 - risk
         avg = filtered["TotalPrice"].mean()
 
-        # ---------------- KPI ----------------
+        # KPIs
         c1, c2, c3 = st.columns(3)
-        c1.metric("Risk %", f"{risk_pct:.1f}%")
-        c2.metric("Safe %", f"{safe_pct:.1f}%")
+        c1.metric("Risk %", f"{risk:.1f}%")
+        c2.metric("Safe %", f"{safe:.1f}%")
         c3.metric("Avg Spend", f"₹{avg:.2f}")
 
-        # ---------------- CHART 1 ----------------
-        st.subheader("📊 Category Performance")
+        # CATEGORY CHART
+        st.subheader("📊 Category Analysis")
+
         cat = filtered.groupby("category")["TotalPrice"].mean().reset_index()
 
-        if chart_type == "Bar":
-            fig1 = px.bar(cat, x="category", y="TotalPrice",
-                          color="TotalPrice",
-                          color_continuous_scale="RdYlGn")
-        elif chart_type == "Line":
-            fig1 = px.line(cat, x="category", y="TotalPrice")
-        else:
-            fig1 = px.pie(cat, names="category", values="TotalPrice")
+        if not cat.empty:
+            if chart == "Bar":
+                fig = px.bar(cat, x="category", y="TotalPrice",
+                             color="TotalPrice",
+                             color_continuous_scale="RdYlGn")
+            elif chart == "Line":
+                fig = px.line(cat, x="category", y="TotalPrice", markers=True)
+            else:
+                fig = px.pie(cat, names="category", values="TotalPrice")
 
-        st.plotly_chart(fig1, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True)
 
-        # ---------------- CHART 2 ----------------
-        st.subheader("👥 Gender Analysis")
-        gen = filtered.groupby("gender")["TotalPrice"].mean().reset_index()
-
-        fig2 = px.bar(gen, x="gender", y="TotalPrice",
-                      color="gender",
-                      color_discrete_map={"Male": "blue", "Female": "pink"})
-
-        st.plotly_chart(fig2, use_container_width=True)
-
-        # ---------------- CHART 3 (NEW) ----------------
+        # AGE CHART
         if "AgeGroup" in filtered.columns:
+            st.subheader("👤 Age Analysis")
 
-            st.subheader("🎯 Age Group Analysis")
+            age_df = filtered.groupby("AgeGroup")["TotalPrice"].mean().reset_index()
 
-            age_grp = filtered.groupby("AgeGroup")["TotalPrice"].mean().reset_index()
+            fig2 = px.bar(age_df, x="AgeGroup", y="TotalPrice",
+                          color="AgeGroup")
 
-            fig3 = px.bar(age_grp,
-                          x="AgeGroup",
-                          y="TotalPrice",
-                          color="AgeGroup",
-                          color_discrete_map={
-                              "Young": "green",
-                              "Middle": "orange",
-                              "Senior": "red"
-                          })
+            st.plotly_chart(fig2, use_container_width=True)
 
-            st.plotly_chart(fig3, use_container_width=True)
-
-        # ---------------- INSIGHTS ----------------
+        # INSIGHTS
         st.subheader("💡 Insights")
 
         best = cat.loc[cat["TotalPrice"].idxmax()]["category"]
         worst = cat.loc[cat["TotalPrice"].idxmin()]["category"]
 
         st.write(f"""
-        - 🔴 Risk Transactions: {risk_pct:.1f}%
-        - 🟢 Safe Transactions: {safe_pct:.1f}%
-        - 🏆 Best Category: {best}
-        - ⚠️ Low Category: {worst}
-
-        👉 Age Insight:
-        Younger customers usually show lower spending,
-        while middle-age customers contribute more revenue.
+        - Risk: {risk:.1f}%
+        - Safe: {safe:.1f}%
+        - Best Category: {best}
+        - Low Category: {worst}
 
         👉 Interpretation:
-        - High risk = more low-value purchases  
-        - Category and age strongly affect performance  
+        - Higher risk → more low-value purchases  
+        - Best category drives revenue  
+        - Age and category influence spending  
         """)
